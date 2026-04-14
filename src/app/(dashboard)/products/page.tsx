@@ -1,19 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Product, FilterState } from "@/types";
 import FilterBar from "@/components/FilterBar";
 import ProductTable from "@/components/ProductTable";
 import ProductDrawer from "@/components/ProductDrawer";
 import Toast from "@/components/Toast";
 import StatRow from "@/components/StatRow";
-import { formatRevenue, formatNumber } from "@/lib/utils";
+import { formatRevenue } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
+type SearchMode = "demo" | "live";
+
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  // ── Data state ─────────────────────────────────────────────────────────
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>("demo");
+  const [cachedResult, setCachedResult] = useState(false);
+
+  // ── UI state ────────────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [trackedIds, setTrackedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -30,7 +39,28 @@ export default function ProductsPage() {
     maxReviews: 0,
   });
 
-  const fetchTracked = useCallback(async () => {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Load demo products + tracked ids on mount ──────────────────────────
+  useEffect(() => {
+    Promise.all([loadDemoProducts(), loadTrackedIds()]);
+  }, []);
+
+  async function loadDemoProducts() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/products");
+      const data = await res.json();
+      setAllProducts(data.products || []);
+      setSearchMode("demo");
+    } catch {
+      showToast("Failed to load products", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadTrackedIds() {
     try {
       const res = await fetch("/api/tracker");
       if (res.ok) {
@@ -41,41 +71,79 @@ export default function ProductsPage() {
         setTrackedIds(ids);
       }
     } catch {
-      // Not authenticated or error — no tracked products
+      // unauthenticated or no tracked products
     }
-  }, []);
+  }
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  // ── Real Amazon search ─────────────────────────────────────────────────
+  async function handleSearch() {
+    if (!searchQuery.trim()) {
+      showToast("Enter a keyword to search Amazon", "info");
+      searchInputRef.current?.focus();
+      return;
+    }
+
+    setSearching(true);
+    setCurrentPage(1);
+
     try {
-      const params = new URLSearchParams();
-      if (filters.search) params.set("q", filters.search);
-      if (filters.category) params.set("category", filters.category);
-      if (filters.minScore > 0) params.set("minScore", filters.minScore.toString());
-      if (filters.competition) params.set("competition", filters.competition);
-      if (filters.minRevenue > 0) params.set("minRevenue", filters.minRevenue.toString());
-      if (filters.maxRevenue > 0) params.set("maxRevenue", filters.maxRevenue.toString());
-      if (filters.maxReviews > 0) params.set("maxReviews", filters.maxReviews.toString());
+      const res = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQuery.trim() }),
+      });
 
-      const res = await fetch(`/api/products?${params}`);
       const data = await res.json();
-      setProducts(data.products || []);
-      setCurrentPage(1);
+
+      if (!res.ok) {
+        showToast(data.error || "Search failed", "error");
+        return;
+      }
+
+      if (!data.products?.length) {
+        showToast("No products found for that keyword", "info");
+        return;
+      }
+
+      setAllProducts(data.products);
+      setSearchMode("live");
+      setCachedResult(!!data.cached);
+      setFilters({
+        search: "",
+        category: "",
+        minRevenue: 0,
+        maxRevenue: 0,
+        minScore: 0,
+        competition: "",
+        maxReviews: 0,
+      });
+
+      showToast(
+        data.cached
+          ? `✓ ${data.products.length} results (cached)`
+          : `✓ Found ${data.products.length} products from Amazon`,
+        "success"
+      );
     } catch {
-      setToast({ message: "Failed to load products", type: "error" });
+      showToast("Search failed — check your connection", "error");
     } finally {
-      setLoading(false);
+      setSearching(false);
     }
-  }, [filters]);
+  }
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handleSearch();
+  }
 
-  useEffect(() => {
-    fetchTracked();
-  }, [fetchTracked]);
+  function clearSearch() {
+    setSearchQuery("");
+    setSearchMode("demo");
+    setCachedResult(false);
+    loadDemoProducts();
+    setFilters({ search: "", category: "", minRevenue: 0, maxRevenue: 0, minScore: 0, competition: "", maxReviews: 0 });
+  }
 
+  // ── Track product ──────────────────────────────────────────────────────
   async function handleTrack(productId: string) {
     try {
       const res = await fetch("/api/tracker", {
@@ -86,51 +154,87 @@ export default function ProductsPage() {
 
       if (res.ok) {
         setTrackedIds((prev) => new Set([...prev, productId]));
-        setToast({ message: "Product added to tracker!", type: "success" });
+        showToast("Added to tracker!", "success");
       } else if (res.status === 409) {
-        setToast({ message: "Product already in tracker", type: "info" });
+        showToast("Already in your tracker", "info");
       } else if (res.status === 401) {
-        setToast({ message: "Please sign in to track products", type: "error" });
+        showToast("Sign in to track products", "error");
       } else {
-        setToast({ message: "Failed to track product", type: "error" });
+        showToast("Failed to track product", "error");
       }
     } catch {
-      setToast({ message: "Failed to track product", type: "error" });
+      showToast("Failed to track product", "error");
     }
   }
 
-  // Unique categories
-  const categories = [...new Set(products.map((p) => p.category))].sort();
+  // ── Client-side filtering ──────────────────────────────────────────────
+  const filtered = useCallback(() => {
+    return allProducts.filter((p) => {
+      const q = filters.search.toLowerCase();
+      if (q && !p.name.toLowerCase().includes(q) && !p.asin.toLowerCase().includes(q)) return false;
+      if (filters.category && p.category !== filters.category) return false;
+      if (filters.minScore > 0 && p.score < filters.minScore) return false;
+      if (filters.competition && p.competition !== filters.competition) return false;
+      if (filters.minRevenue > 0 && p.revenue < filters.minRevenue) return false;
+      if (filters.maxRevenue > 0 && p.revenue > filters.maxRevenue) return false;
+      if (filters.maxReviews > 0 && p.reviews > filters.maxReviews) return false;
+      return true;
+    });
+  }, [allProducts, filters]);
 
-  // Pagination
-  const totalPages = Math.ceil(products.length / PAGE_SIZE);
-  const paginated = products.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const filteredProducts = filtered();
+  const categories = [...new Set(allProducts.map((p) => p.category))].sort();
+  const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
+  const paginated = filteredProducts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
-  // Stats
-  const avgScore = products.length > 0
-    ? (products.reduce((sum, p) => sum + p.score, 0) / products.length).toFixed(1)
+  // ── Stats ──────────────────────────────────────────────────────────────
+  const avgScore = filteredProducts.length
+    ? (filteredProducts.reduce((s, p) => s + p.score, 0) / filteredProducts.length).toFixed(1)
     : "0";
-  const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
-  const lowCompCount = products.filter((p) => p.competition === "Low").length;
+  const totalRevenue = filteredProducts.reduce((s, p) => s + p.revenue, 0);
+  const lowComp = filteredProducts.filter((p) => p.competition === "Low").length;
 
   const stats = [
-    { label: "Products Found", value: products.length, icon: "📦" },
+    { label: "Products Found", value: filteredProducts.length, icon: "📦" },
     { label: "Avg Score", value: avgScore, icon: "⭐", trend: "up" as const },
-    { label: "Total Revenue", value: formatRevenue(totalRevenue), sub: "combined monthly", icon: "💰" },
-    { label: "Low Competition", value: `${lowCompCount} of ${products.length}`, icon: "🎯" },
+    { label: "Est. Combined Revenue", value: formatRevenue(totalRevenue), sub: "per month", icon: "💰" },
+    { label: "Low Competition", value: `${lowComp} / ${filteredProducts.length}`, icon: "🎯" },
   ];
+
+  function showToast(message: string, type: "success" | "error" | "info") {
+    setToast({ message, type });
+  }
+
+  function handleFiltersChange(next: FilterState) {
+    setFilters(next);
+    setCurrentPage(1);
+  }
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-txt">Product Research</h1>
           <p className="text-txt-2 text-sm mt-0.5">
-            {loading ? "Loading..." : `${products.length} products • Sorted by SellerScore`}
+            {searchMode === "live"
+              ? `Live Amazon data${cachedResult ? " (cached)" : ""} · sorted by SellerScore`
+              : "Demo data · search Amazon to get live results"}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Live / Demo badge */}
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+            searchMode === "live"
+              ? "bg-green-light text-green border-green-border"
+              : "bg-bg-2 text-txt-3 border-bd"
+          }`}>
+            {searchMode === "live" ? "🟢 Live" : "⚪ Demo"}
+          </span>
+
           {/* View toggle */}
           <div className="flex items-center bg-bg-2 rounded-lg p-0.5 border border-bd">
             <button
@@ -155,25 +259,99 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Amazon Search Bar ── */}
+      <div className="bg-white rounded-xl border border-bd p-4 mb-5">
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-txt-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder='Search Amazon — e.g. "bamboo lunch box" or "dog slow feeder"'
+              className="input-field pl-9 pr-4 h-11 text-base"
+              disabled={searching}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-txt-3 hover:text-txt"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={searching}
+            className="btn-primary h-11 px-6 text-base disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 min-w-40 justify-center"
+          >
+            {searching ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Searching...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+                </svg>
+                Search Amazon
+              </>
+            )}
+          </button>
+          {searchMode === "live" && (
+            <button
+              onClick={clearSearch}
+              className="h-11 px-4 text-sm text-txt-2 hover:text-txt border border-bd rounded-lg hover:bg-bg-2 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16M4 20L20 4"/>
+              </svg>
+              Clear
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-txt-3 mt-2 ml-1">
+          Results are cached for 24h to save API credits · Powered by Rainforest + Keepa
+        </p>
+      </div>
+
+      {/* ── Stats ── */}
       <StatRow stats={stats} />
 
-      {/* Filters */}
+      {/* ── Filter bar ── */}
       <FilterBar
         filters={filters}
-        onChange={setFilters}
+        onChange={handleFiltersChange}
         categories={categories}
       />
 
-      {/* Table / Cards */}
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <div className="flex flex-col items-center gap-3">
-            <svg className="animate-spin h-8 w-8 text-orange" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-            <p className="text-txt-2 text-sm">Loading products...</p>
+      {/* ── Results ── */}
+      {loading || searching ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <svg className="animate-spin h-10 w-10 text-orange" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <div className="text-center">
+            <p className="text-txt-2 font-semibold">
+              {searching ? "Searching Amazon…" : "Loading products…"}
+            </p>
+            {searching && (
+              <p className="text-txt-3 text-sm mt-1">
+                Fetching live data from Rainforest + Keepa — this takes 5–15s
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -183,17 +361,12 @@ export default function ProductsPage() {
             onRowClick={setSelectedProduct}
             trackedIds={trackedIds}
             selectedIds={selectedIds}
-            onSelectAll={(checked) => {
-              if (checked) {
-                setSelectedIds(new Set(paginated.map((p) => p.id)));
-              } else {
-                setSelectedIds(new Set());
-              }
-            }}
+            onSelectAll={(checked) =>
+              setSelectedIds(checked ? new Set(paginated.map((p) => p.id)) : new Set())
+            }
             onSelectOne={(id, checked) => {
               const next = new Set(selectedIds);
-              if (checked) next.add(id);
-              else next.delete(id);
+              checked ? next.add(id) : next.delete(id);
               setSelectedIds(next);
             }}
             viewMode={viewMode}
@@ -203,7 +376,9 @@ export default function ProductsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
               <p className="text-sm text-txt-3">
-                Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, products.length)} of {products.length} products
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, filteredProducts.length)} of{" "}
+                {filteredProducts.length} products
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -243,21 +418,15 @@ export default function ProductsPage() {
         </>
       )}
 
-      {/* Product Drawer */}
+      {/* Drawer + Toast */}
       <ProductDrawer
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onTrack={handleTrack}
         isTracked={selectedProduct ? trackedIds.has(selectedProduct.id) : false}
       />
-
-      {/* Toast */}
       {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

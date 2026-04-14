@@ -57,3 +57,11 @@ model Keyword {
   difficulty String
   trend      String
 }
+
+model SearchCache {
+  id        String   @id @default(cuid())
+  query     String   @unique
+  results   String   // JSON array of enriched products
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+}
