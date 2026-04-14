@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --or: #f26522;
+  --orh: #d4581a;
+  --olt: #fff4ee;
+  --obd: #fcd0b5;
+  --gn: #1e7e34;
+  --rd: #c0392b;
+  --am: #b45309;
+  --txt: #1a1f2e;
+  --txt2: #4a5568;
+  --txt3: #8a96a8;
+  --bd: #e0e3e8;
+  --bg: #f7f8fa;
+  --bg2: #f0f2f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Source Sans 3', sans-serif;
+  color: var(--txt);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bd);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--txt3);
+}
+
+/* JetBrains Mono utility class */
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-orange text-white font-semibold px-4 py-2 rounded-lg hover:bg-orange-hover transition-colors duration-150 cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-txt-2 font-semibold px-4 py-2 rounded-lg border border-bd hover:bg-bg-2 transition-colors duration-150 cursor-pointer;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-bd shadow-sm;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 border border-bd rounded-lg text-sm text-txt bg-white focus:outline-none focus:ring-2 focus:ring-orange focus:border-transparent transition-all;
+  }
+
+  .badge-low {
+    @apply bg-green-light text-green border border-green-border text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+
+  .badge-medium {
+    @apply bg-amber-light text-amber border border-amber-border text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+
+  .badge-high {
+    @apply bg-red-light text-red border border-red-border text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+}
