@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  plan      String   @default("starter")
+  searches  Int      @default(0)
+  maxSearches Int    @default(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  trackedProducts TrackedProduct[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  emoji       String
+  name        String
+  asin        String   @unique
+  category    String
+  revenue     Int
+  bsr         Int
+  price       Float
+  reviews     Int
+  score       Float
+  competition String
+  trend       String
+  margin      Int
+  sparkline   String   // JSON array
+  createdAt   DateTime @default(now())
+  trackedBy   TrackedProduct[]
+}
+
+model TrackedProduct {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([userId, productId])
+}
+
+model Keyword {
+  id         String @id @default(cuid())
+  keyword    String @unique
+  volume     Int
+  cpc        Float
+  difficulty String
+  trend      String
+}
