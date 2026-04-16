@@ -55,6 +55,22 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Register error:", error);
+
+    // Surface a helpful message for common DB issues
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("does not exist") || msg.includes("relation") || msg.includes("table")) {
+      return NextResponse.json(
+        { error: "Database tables not found. Run: npx prisma db push" },
+        { status: 500 }
+      );
+    }
+    if (msg.includes("connect") || msg.includes("ECONNREFUSED") || msg.includes("timeout")) {
+      return NextResponse.json(
+        { error: "Cannot connect to database. Check DATABASE_URL in Vercel env vars." },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to create account" },
       { status: 500 }
