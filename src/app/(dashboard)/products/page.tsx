@@ -117,6 +117,10 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(false);
   const [hasQueried, setHasQueried] = useState(false);
 
+  const [importQuery, setImportQuery] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [dbCount, setDbCount] = useState<number | null>(null);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [trackedIds, setTrackedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -126,7 +130,14 @@ export default function ProductsPage() {
 
   const PAGE_SIZE = 50;
 
-  useEffect(() => { loadTrackedIds(); }, []);
+  useEffect(() => {
+    loadTrackedIds();
+    // Check how many products are already in the DB
+    fetch("/api/products?limit=1")
+      .then((r) => r.json())
+      .then((d) => setDbCount(d.total ?? 0))
+      .catch(() => {});
+  }, []);
 
   async function loadTrackedIds() {
     try {
@@ -136,6 +147,33 @@ export default function ProductsPage() {
         setTrackedIds(new Set<string>(data.trackedProducts.map((tp: { productId: string }) => tp.productId)));
       }
     } catch { /* not signed in */ }
+  }
+
+  async function importProducts() {
+    if (!importQuery.trim()) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: importQuery.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Import failed", "error"); return; }
+      const count = data.products?.length ?? 0;
+      setDbCount((prev) => (prev ?? 0) + count);
+      setImportQuery("");
+      showToast(
+        data.cached
+          ? `Already have ${count} products for that niche`
+          : `Imported ${count} products into your database`,
+        "success"
+      );
+    } catch {
+      showToast("Import failed — check your connection", "error");
+    } finally {
+      setImporting(false);
+    }
   }
 
   function set(key: keyof FilterState, value: string | number) {
@@ -231,6 +269,52 @@ export default function ProductsPage() {
             : "Set your criteria below to discover winning products"}
         </p>
       </div>
+
+      {/* ── Import banner (shown while DB is empty or being built) ── */}
+      {dbCount !== null && dbCount < 20 && (
+        <div className="bg-amber-light border border-amber-border rounded-xl p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl mt-0.5">📥</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-txt text-sm">
+                {dbCount === 0 ? "Your product database is empty" : `Only ${dbCount} products in your database`}
+              </p>
+              <p className="text-txt-2 text-xs mt-0.5 mb-3">
+                Enter a niche keyword to fetch real Amazon products into your database. Do this a few times to build up inventory you can filter through.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={importQuery}
+                  onChange={(e) => setImportQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && importProducts()}
+                  placeholder='e.g. "bamboo lunch box", "dog slow feeder"'
+                  className="input-field h-9 text-sm flex-1"
+                  disabled={importing}
+                />
+                <button
+                  onClick={importProducts}
+                  disabled={importing || !importQuery.trim()}
+                  className="btn-primary h-9 px-4 text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  {importing ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Importing…
+                    </>
+                  ) : "Import"}
+                </button>
+              </div>
+              <p className="text-xs text-txt-3 mt-2">
+                Suggested niches: bamboo lunch box · dog slow feeder · yoga blocks · posture corrector · desk organizer
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Filter panel ────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-bd mb-5 overflow-hidden">
