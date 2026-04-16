@@ -61,12 +61,22 @@ export interface User {
   maxSearches: number;
 }
 
+export type SortField = "score" | "revenue" | "bsr" | "price" | "reviews" | "margin";
+
 export interface FilterState {
-  search: string;
   category: string;
+  competition: string;
+  trend: string;
   minRevenue: number;
   maxRevenue: number;
+  minBSR: number;
+  maxBSR: number;
+  minPrice: number;
+  maxPrice: number;
   minScore: number;
-  competition: string;
+  maxScore: number;
   maxReviews: number;
+  minMargin: number;
+  sortBy: SortField;
+  sortDir: "asc" | "desc";
 }
