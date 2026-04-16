@@ -1,3 +1,4 @@
+/** Client-facing product shape — sparkline is already parsed to number[] */
 export interface Product {
   id: string;
   emoji: string;
@@ -15,6 +16,23 @@ export interface Product {
   sparkline: number[];
   createdAt?: string;
   isTracked?: boolean;
+}
+
+/** Shape used when inserting/updating the DB — sparkline is a JSON string */
+export interface ProductInsert {
+  emoji: string;
+  name: string;
+  asin: string;
+  category: string;
+  revenue: number;
+  bsr: number;
+  price: number;
+  reviews: number;
+  score: number;
+  competition: string;
+  trend: string;
+  margin: number;
+  sparkline: string;
 }
 
 export interface Keyword {

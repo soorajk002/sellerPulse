@@ -18,8 +18,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rainforestSearch, type RainforestSearchResult } from "@/lib/rainforest";
 import { keepaProducts, type KeepaRawProduct } from "@/lib/keepa";
-import { buildProduct } from "@/lib/scoring";
-import type { Product } from "@/types";
+import { buildProduct, sellerScore, competitionLevel, estimateMargin, bsrToMonthlyUnits } from "@/lib/scoring";
+import type { Product, ProductInsert } from "@/types";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_RESULTS = 20;
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     );
 
     // ── 4. Build + score products ─────────────────────────────────────────
-    const enriched: (Omit<Product, "id"> & { id?: string })[] = [];
+    const enriched: ProductInsert[] = [];
 
     for (const asin of asins) {
       const keepa = keepaMap.get(asin);
@@ -98,7 +98,6 @@ export async function POST(request: NextRequest) {
 
       if (!keepa && !rf) continue;
 
-      // If we have no Keepa data, build a minimal product from Rainforest only
       const productData = keepa
         ? buildProduct(keepa, rf)
         : buildProductFromRainforest(rf!);
@@ -128,7 +127,7 @@ export async function POST(request: NextRequest) {
             competition: p.competition,
             trend: p.trend,
             margin: p.margin,
-            sparkline: p.sparkline,
+            sparkline: p.sparkline, // already a string
           },
           create: {
             emoji: p.emoji,
@@ -143,14 +142,16 @@ export async function POST(request: NextRequest) {
             competition: p.competition,
             trend: p.trend,
             margin: p.margin,
-            sparkline: p.sparkline,
+            sparkline: p.sparkline, // already a string
           },
         });
 
+        // Parse sparkline back to number[] for the client
         saved.push({
           ...product,
-          sparkline: JSON.parse(product.sparkline),
-        } as unknown as Product);
+          sparkline: JSON.parse(product.sparkline) as number[],
+          createdAt: product.createdAt.toISOString(),
+        });
       } catch (e) {
         console.error(`Failed to upsert product ${p.asin}:`, e);
       }
@@ -189,16 +190,11 @@ export async function POST(request: NextRequest) {
 }
 
 /** Fallback: build a product from Rainforest data only (no Keepa). */
-function buildProductFromRainforest(
-  rf: RainforestSearchResult
-): Omit<Product, "id"> {
+function buildProductFromRainforest(rf: RainforestSearchResult): ProductInsert {
   const reviews = rf.ratings_total ?? 0;
   const price = rf.price?.value ?? 0;
   const bsr = rf.bestseller_rank?.[0]?.rank ?? 50000;
   const trend = "flat" as const;
-
-  const { sellerScore, competitionLevel, estimateMargin, bsrToMonthlyUnits } =
-    require("@/lib/scoring") as typeof import("@/lib/scoring");
 
   const score = sellerScore(bsr, reviews, price, trend);
   const units = bsrToMonthlyUnits(bsr);
@@ -217,6 +213,5 @@ function buildProductFromRainforest(
     trend,
     margin: estimateMargin(price),
     sparkline: JSON.stringify([]),
-    createdAt: new Date(),
   };
 }

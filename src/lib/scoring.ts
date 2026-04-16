@@ -12,7 +12,7 @@
  *  15% Trend      – driven by BSR direction over last 15 data points
  */
 
-import type { Product } from "@/types";
+import type { ProductInsert } from "@/types";
 import {
   getBSR,
   getBSRSparkline,
@@ -151,7 +151,7 @@ export function sellerScore(
 export function buildProduct(
   keepa: KeepaRawProduct,
   rf: RainforestSearchResult | null
-): Omit<Product, "id"> {
+): ProductInsert {
   const reviews = keepa.reviewCount ?? rf?.ratings_total ?? 0;
 
   // Price: prefer Keepa buybox (csv index 0 = Amazon price, 18 = Buy Box)
@@ -195,7 +195,6 @@ export function buildProduct(
     trend,
     margin,
     sparkline: JSON.stringify(sparkline),
-    createdAt: new Date(),
   };
 }
 
