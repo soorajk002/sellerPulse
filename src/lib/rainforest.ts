@@ -81,7 +81,8 @@ export interface RainforestProductResponse {
  */
 export async function rainforestSearch(
   query: string,
-  page = 1
+  page = 1,
+  options?: { minPrice?: number; maxPrice?: number }
 ): Promise<RainforestSearchResult[]> {
   const params = new URLSearchParams({
     api_key: getKey(),
@@ -91,6 +92,8 @@ export async function rainforestSearch(
     page: String(page),
     exclude_sponsored: "true",
   });
+  if (options?.minPrice && options.minPrice > 0) params.set("min_price", String(options.minPrice));
+  if (options?.maxPrice && options.maxPrice > 0) params.set("max_price", String(options.maxPrice));
 
   const res = await fetchWithTimeout(`${RAINFOREST_BASE}?${params}`);
 

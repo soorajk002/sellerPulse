@@ -2,20 +2,20 @@
  * GET /api/products
  *
  * Flow when `category` is provided:
- *  1. Check SearchCache for "bestsellers:{category}" (24h TTL)
- *  2. Cache miss → fetch Rainforest bestsellers → Keepa enrichment
- *     → upsert into Product table → write cache marker
- *  3. Query Product table with all filter params → return
+ *  1. Check SearchCache for "search:{category}:{minPrice}-{maxPrice}" (24h TTL)
+ *  2. Cache miss → fetch 3 pages of Rainforest search results (with price
+ *     filters if set) → Keepa enrichment → upsert into Product table → cache
+ *  3. Query Product table with all remaining filter params → return
  *
  * Flow when no `category`:
- *  - Query Product table directly (fast; may return empty if DB not seeded)
+ *  - Query Product table directly
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { rainforestBestsellers } from "@/lib/rainforest";
+import { rainforestSearch } from "@/lib/rainforest";
 import { keepaProducts } from "@/lib/keepa";
 import { buildProduct, sellerScore, competitionLevel, estimateMargin, bsrToMonthlyUnits } from "@/lib/scoring";
 import { mapCategory, type RainforestSearchResult } from "@/lib/rainforest";
@@ -24,19 +24,20 @@ import type { ProductInsert } from "@/types";
 import type { Prisma } from "@prisma/client";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const SEARCH_PAGES = 3;
 
-// Amazon browse node IDs for bestseller pages
-const CATEGORY_NODE: Record<string, string> = {
-  Kitchen:     "284507",
-  Pet:         "2619533011",
-  Sports:      "3375251",
-  Beauty:      "11055981",
-  Office:      "1064954",
-  Baby:        "165797011",
-  Toys:        "165993011",
-  Clothing:    "7141123011",
-  Electronics: "172282",
-  Books:       "283155",
+// Category-specific search terms that yield broad, relevant Amazon results
+const CATEGORY_SEARCH: Record<string, string> = {
+  Kitchen:     "kitchen home cooking accessories gadgets",
+  Pet:         "pet supplies dog cat accessories",
+  Sports:      "sports fitness outdoor exercise equipment",
+  Beauty:      "beauty skincare personal care cosmetics",
+  Office:      "office supplies desk organization stationery",
+  Baby:        "baby products infant toddler accessories",
+  Toys:        "toys games children educational",
+  Clothing:    "clothing apparel fashion accessories",
+  Electronics: "electronics smart home gadgets tech accessories",
+  Books:       "books bestsellers nonfiction self help",
 };
 
 export async function GET(request: NextRequest) {
@@ -68,14 +69,20 @@ export async function GET(request: NextRequest) {
     const allowedSort = ["score", "revenue", "bsr", "price", "reviews", "margin", "createdAt"];
     const safeSort    = allowedSort.includes(sortBy) ? sortBy : "score";
 
-    // ── 1. If a category is selected, ensure its data is fresh ─────────────
-    if (category && CATEGORY_NODE[category]) {
-      const cacheKey = `bestsellers:${category.toLowerCase()}`;
+    // ── 1. Fetch & cache search results for this category + price range ────────
+    if (category && CATEGORY_SEARCH[category]) {
+      const cacheKey = `search:${category.toLowerCase()}:${minPrice}-${maxPrice}`;
       const cached = await prisma.searchCache.findUnique({ where: { query: cacheKey } });
       const isStale = !cached || cached.expiresAt < new Date();
 
       if (isStale) {
-        await seedCategory(category, CATEGORY_NODE[category], cacheKey);
+        await seedFromSearch(
+          category,
+          CATEGORY_SEARCH[category],
+          cacheKey,
+          minPrice,
+          maxPrice,
+        );
       }
     }
 
@@ -110,7 +117,7 @@ export async function GET(request: NextRequest) {
         createdAt: p.createdAt.toISOString(),
       })),
       total,
-      live: category && CATEGORY_NODE[category] ? true : false,
+      live: category && CATEGORY_SEARCH[category] ? true : false,
     });
   } catch (error) {
     console.error("Products API error:", error);
@@ -118,21 +125,46 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ── Category seeder ───────────────────────────────────────────────────────────
+// ── Search-based seeder ───────────────────────────────────────────────────────
 
-async function seedCategory(category: string, nodeId: string, cacheKey: string) {
+async function seedFromSearch(
+  category: string,
+  searchTerm: string,
+  cacheKey: string,
+  minPrice: number,
+  maxPrice: number,
+) {
   try {
-    const rfResults = await rainforestBestsellers(nodeId);
-    if (rfResults.length === 0) return;
+    // Fetch up to SEARCH_PAGES pages from Rainforest with price filters applied
+    const allResults: RainforestSearchResult[] = [];
+    for (let page = 1; page <= SEARCH_PAGES; page++) {
+      const results = await rainforestSearch(searchTerm, page, {
+        minPrice: minPrice > 0 ? minPrice : undefined,
+        maxPrice: maxPrice > 0 ? maxPrice : undefined,
+      }).catch(() => []);
+      allResults.push(...results);
+      if (results.length < 5) break; // no more pages
+    }
 
+    if (allResults.length === 0) return;
+
+    // Deduplicate by ASIN
+    const seen = new Set<string>();
+    const rfResults = allResults.filter((r) => {
+      if (seen.has(r.asin)) return false;
+      seen.add(r.asin);
+      return true;
+    });
+
+    // Enrich with Keepa for BSR history, sales rank trend, accurate pricing
     const asins = rfResults.map((r) => r.asin);
     const keepaData = await keepaProducts(asins).catch(() => []);
-    const keepaMap = new Map(keepaData.map((k) => [k.asin, k]));
-    const rfMap = new Map(rfResults.map((r) => [r.asin, r]));
+    const keepaMap  = new Map(keepaData.map((k) => [k.asin, k]));
+    const rfMap     = new Map(rfResults.map((r) => [r.asin, r]));
 
     for (const asin of asins) {
       const keepa = keepaMap.get(asin);
-      const rf = rfMap.get(asin) ?? null;
+      const rf    = rfMap.get(asin) ?? null;
       if (!keepa && !rf) continue;
 
       const data: ProductInsert = keepa
@@ -150,7 +182,6 @@ async function seedCategory(category: string, nodeId: string, cacheKey: string) 
       } catch { /* skip */ }
     }
 
-    // Mark category as fresh
     const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
     await prisma.searchCache.upsert({
       where: { query: cacheKey },
@@ -158,7 +189,7 @@ async function seedCategory(category: string, nodeId: string, cacheKey: string) 
       create: { query: cacheKey, results: String(rfResults.length), expiresAt },
     });
   } catch (err) {
-    console.error(`Failed to seed category ${category}:`, err);
+    console.error(`Failed to seed from search for ${category}:`, err);
   }
 }
 
