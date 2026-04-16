@@ -23,6 +23,8 @@ import { parseSparkline } from "@/lib/utils";
 import type { ProductInsert } from "@/types";
 import type { Prisma } from "@prisma/client";
 
+export const maxDuration = 60;
+
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const SEARCH_PAGES = 3;
 
@@ -181,6 +183,9 @@ async function seedFromSearch(
       if (!keepa && !rf) continue;
       const data: ProductInsert = keepa ? buildProduct(keepa, rf) : buildFromRF(rf!, category);
       if (!data.name || data.price <= 0) continue;
+      // mapCategory() returns "Other" when Keepa/RF lack category metadata —
+      // products from a category search belong to that category regardless.
+      if (data.category === "Other") data.category = category;
       toUpsert.push(data);
     }
 
