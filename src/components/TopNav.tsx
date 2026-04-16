@@ -1,20 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 
-const navItems = [
-  { href: "/products", label: "Products", icon: "📦" },
-  { href: "/keywords", label: "Keywords", icon: "🔍" },
-  { href: "/tracker", label: "Tracker", icon: "📈" },
-  { href: "/calculator", label: "Profit Calc", icon: "💰" },
-  { href: "/insights", label: "AI Insights", icon: "🤖" },
-];
-
 export default function TopNav() {
-  const pathname = usePathname();
   const { data: session } = useSession();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -36,26 +26,7 @@ export default function TopNav() {
           <span className="font-bold text-txt hidden sm:block">SellerPulse</span>
         </Link>
 
-        {/* Nav tabs */}
-        <nav className="hidden md:flex items-center gap-1 flex-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-orange-light text-orange"
-                    : "text-txt-2 hover:text-txt hover:bg-bg"
-                }`}
-              >
-                <span className="text-base">{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="flex-1" />
 
         <div className="flex items-center gap-2 ml-auto">
           {/* Upgrade button */}
