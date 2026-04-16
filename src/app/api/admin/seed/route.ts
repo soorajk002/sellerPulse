@@ -18,7 +18,7 @@ import type { ProductInsert } from "@/types";
 import { parseSparkline } from "@/lib/utils";
 
 // Amazon browse node IDs for bestseller pages
-export const SEED_CATEGORIES: Record<string, { name: string; nodeId: string }> = {
+const SEED_CATEGORIES: Record<string, { name: string; nodeId: string }> = {
   kitchen:     { name: "Kitchen",      nodeId: "284507" },
   pet:         { name: "Pet",          nodeId: "2619533011" },
   sports:      { name: "Sports",       nodeId: "3375251" },
