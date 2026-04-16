@@ -135,17 +135,18 @@ async function seedFromSearch(
   maxPrice: number,
 ) {
   try {
-    // Fetch up to SEARCH_PAGES pages from Rainforest with price filters applied
-    const allResults: RainforestSearchResult[] = [];
-    for (let page = 1; page <= SEARCH_PAGES; page++) {
-      const results = await rainforestSearch(searchTerm, page, {
-        minPrice: minPrice > 0 ? minPrice : undefined,
-        maxPrice: maxPrice > 0 ? maxPrice : undefined,
-      }).catch(() => []);
-      allResults.push(...results);
-      if (results.length < 5) break; // no more pages
-    }
+    const priceOpts = {
+      minPrice: minPrice > 0 ? minPrice : undefined,
+      maxPrice: maxPrice > 0 ? maxPrice : undefined,
+    };
 
+    // Fetch all pages in parallel — 3× faster than sequential
+    const pages = await Promise.all(
+      Array.from({ length: SEARCH_PAGES }, (_, i) =>
+        rainforestSearch(searchTerm, i + 1, priceOpts).catch(() => [])
+      )
+    );
+    const allResults = pages.flat();
     if (allResults.length === 0) return;
 
     // Deduplicate by ASIN
@@ -156,31 +157,43 @@ async function seedFromSearch(
       return true;
     });
 
-    // Enrich with Keepa for BSR history, sales rank trend, accurate pricing
     const asins = rfResults.map((r) => r.asin);
-    const keepaData = await keepaProducts(asins).catch(() => []);
-    const keepaMap  = new Map(keepaData.map((k) => [k.asin, k]));
-    const rfMap     = new Map(rfResults.map((r) => [r.asin, r]));
 
-    for (const asin of asins) {
+    // Skip Keepa for ASINs already in DB — only enrich new ones
+    const existing = await prisma.product.findMany({
+      where: { asin: { in: asins } },
+      select: { asin: true },
+    });
+    const existingSet = new Set(existing.map((p) => p.asin));
+    const newAsins = asins.filter((a) => !existingSet.has(a));
+
+    const keepaData = newAsins.length > 0
+      ? await keepaProducts(newAsins).catch(() => [])
+      : [];
+    const keepaMap = new Map(keepaData.map((k) => [k.asin, k]));
+    const rfMap    = new Map(rfResults.map((r) => [r.asin, r]));
+
+    // Build upsert payloads for new ASINs only
+    const toUpsert: ProductInsert[] = [];
+    for (const asin of newAsins) {
       const keepa = keepaMap.get(asin);
       const rf    = rfMap.get(asin) ?? null;
       if (!keepa && !rf) continue;
-
-      const data: ProductInsert = keepa
-        ? buildProduct(keepa, rf)
-        : buildFromRF(rf!, category);
-
+      const data: ProductInsert = keepa ? buildProduct(keepa, rf) : buildFromRF(rf!, category);
       if (!data.name || data.price <= 0) continue;
+      toUpsert.push(data);
+    }
 
-      try {
-        await prisma.product.upsert({
+    // Upsert all in parallel
+    await Promise.allSettled(
+      toUpsert.map((data) =>
+        prisma.product.upsert({
           where: { asin: data.asin },
           update: { name: data.name, category: data.category, revenue: data.revenue, bsr: data.bsr, price: data.price, reviews: data.reviews, score: data.score, competition: data.competition, trend: data.trend, margin: data.margin, sparkline: data.sparkline },
           create: { emoji: data.emoji, name: data.name, asin: data.asin, category: data.category, revenue: data.revenue, bsr: data.bsr, price: data.price, reviews: data.reviews, score: data.score, competition: data.competition, trend: data.trend, margin: data.margin, sparkline: data.sparkline },
-        });
-      } catch { /* skip */ }
-    }
+        })
+      )
+    );
 
     const expiresAt = new Date(Date.now() + CACHE_TTL_MS);
     await prisma.searchCache.upsert({
