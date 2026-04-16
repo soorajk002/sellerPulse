@@ -123,12 +123,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo hint */}
-        <div className="mt-4 p-3 bg-bg rounded-lg border border-bd">
-          <p className="text-xs text-txt-3 text-center">
-            Demo: <span className="font-mono text-txt-2">demo@sellerpulse.com</span> / <span className="font-mono text-txt-2">password123</span>
-          </p>
-        </div>
       </div>
 
       <p className="text-center text-xs text-txt-3 mt-6">

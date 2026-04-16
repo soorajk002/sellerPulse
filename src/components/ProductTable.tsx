@@ -2,7 +2,7 @@
 
 import { Product } from "@/types";
 import Ring from "./Ring";
-import { formatRevenue, formatNumber, competitionClass } from "@/lib/utils";
+import { formatRevenue, formatNumber, competitionClass, parseSparkline } from "@/lib/utils";
 
 function MiniSparkline({ data, trend }: { data: number[]; trend: string }) {
   if (!data || data.length < 2) return null;
@@ -86,7 +86,7 @@ export default function ProductTable({
                 {product.competition}
               </span>
               <div className="flex items-center gap-2">
-                <MiniSparkline data={Array.isArray(product.sparkline) ? product.sparkline : JSON.parse(product.sparkline as unknown as string)} trend={product.trend} />
+                <MiniSparkline data={parseSparkline(product.sparkline)} trend={product.trend} />
                 <span className={`text-sm font-bold ${product.trend === "up" ? "text-green" : product.trend === "down" ? "text-red" : "text-txt-3"}`}>
                   {product.trend === "up" ? "↑" : product.trend === "down" ? "↓" : "→"}
                 </span>
@@ -133,9 +133,7 @@ export default function ProductTable({
           </thead>
           <tbody>
             {products.map((product) => {
-              const sparkData = Array.isArray(product.sparkline)
-                ? product.sparkline
-                : JSON.parse(product.sparkline as unknown as string);
+              const sparkData = parseSparkline(product.sparkline);
 
               return (
                 <tr

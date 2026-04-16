@@ -10,7 +10,21 @@
  */
 
 const RAINFOREST_BASE = "https://api.rainforestapi.com/request";
-const RAINFOREST_KEY = process.env.RAINFOREST_API_KEY!;
+const RAINFOREST_KEY = process.env.RAINFOREST_API_KEY;
+
+function getKey(): string {
+  if (!RAINFOREST_KEY) throw new Error("RAINFOREST_API_KEY environment variable is not set");
+  return RAINFOREST_KEY;
+}
+
+const TIMEOUT_MS = 15000;
+
+function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  return fetch(url, { signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +84,7 @@ export async function rainforestSearch(
   page = 1
 ): Promise<RainforestSearchResult[]> {
   const params = new URLSearchParams({
-    api_key: RAINFOREST_KEY,
+    api_key: getKey(),
     type: "search",
     amazon_domain: "amazon.com",
     search_term: query,
@@ -78,9 +92,7 @@ export async function rainforestSearch(
     exclude_sponsored: "true",
   });
 
-  const res = await fetch(`${RAINFOREST_BASE}?${params}`, {
-    next: { revalidate: 0 },
-  });
+  const res = await fetchWithTimeout(`${RAINFOREST_BASE}?${params}`);
 
   if (!res.ok) {
     const text = await res.text();
@@ -106,15 +118,13 @@ export async function rainforestProduct(
   asin: string
 ): Promise<RainforestProductResponse["product"] | null> {
   const params = new URLSearchParams({
-    api_key: RAINFOREST_KEY,
+    api_key: getKey(),
     type: "product",
     amazon_domain: "amazon.com",
     asin,
   });
 
-  const res = await fetch(`${RAINFOREST_BASE}?${params}`, {
-    next: { revalidate: 0 },
-  });
+  const res = await fetchWithTimeout(`${RAINFOREST_BASE}?${params}`);
 
   if (!res.ok) return null;
 

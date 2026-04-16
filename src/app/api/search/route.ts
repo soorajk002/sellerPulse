@@ -39,18 +39,38 @@ export async function POST(request: NextRequest) {
 
     const normalizedQuery = query.trim().toLowerCase();
 
+    // ── 0. Quota check (fresh from DB) ────────────────────────────────────
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true, searches: true, maxSearches: true },
+    });
+
+    if (user && user.plan !== "pro" && user.searches >= user.maxSearches) {
+      return NextResponse.json(
+        { error: `Search limit reached (${user.maxSearches}/${user.maxSearches}). Upgrade to Pro for unlimited searches.` },
+        { status: 429 }
+      );
+    }
+
     // ── 1. Cache check ─────────────────────────────────────────────────────
     const cached = await prisma.searchCache.findUnique({
       where: { query: normalizedQuery },
     });
 
     if (cached && cached.expiresAt > new Date()) {
-      const products = JSON.parse(cached.results) as Product[];
-      return NextResponse.json({
-        products,
-        cached: true,
-        cachedAt: cached.fetchedAt,
-      });
+      let products: Product[] = [];
+      try {
+        products = JSON.parse(cached.results) as Product[];
+      } catch {
+        // Corrupted cache entry — fall through to fresh fetch
+      }
+      if (products.length > 0) {
+        return NextResponse.json({
+          products,
+          cached: true,
+          cachedAt: cached.fetchedAt,
+        });
+      }
     }
 
     // ── 2. Rainforest search ───────────────────────────────────────────────
@@ -147,9 +167,13 @@ export async function POST(request: NextRequest) {
         });
 
         // Parse sparkline back to number[] for the client
+        let sparkline: number[] = [];
+        try {
+          sparkline = JSON.parse(product.sparkline) as number[];
+        } catch { /* leave as empty array */ }
         saved.push({
           ...product,
-          sparkline: JSON.parse(product.sparkline) as number[],
+          sparkline,
           createdAt: product.createdAt.toISOString(),
         });
       } catch (e) {

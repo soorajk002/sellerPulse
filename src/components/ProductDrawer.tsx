@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Product } from "@/types";
 import Ring from "./Ring";
-import { formatRevenue, formatNumber, competitionClass, scoreRating } from "@/lib/utils";
+import { formatRevenue, formatNumber, competitionClass, scoreRating, parseSparkline } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 interface ProductDrawerProps {
@@ -14,7 +14,13 @@ interface ProductDrawerProps {
 }
 
 function Sparkline({ data }: { data: number[] }) {
-  if (!data || data.length === 0) return null;
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-16 text-txt-3 text-sm">
+        No BSR history available
+      </div>
+    );
+  }
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -95,9 +101,7 @@ export default function ProductDrawer({ product, onClose, onTrack, isTracked }: 
 
   if (!product) return null;
 
-  const sparklineData = Array.isArray(product.sparkline)
-    ? product.sparkline
-    : JSON.parse(product.sparkline as unknown as string);
+  const sparklineData = parseSparkline(product.sparkline);
 
   return (
     <>
@@ -241,7 +245,7 @@ export default function ProductDrawer({ product, onClose, onTrack, isTracked }: 
             <button
               onClick={() => {
                 onClose();
-                router.push("/calculator");
+                router.push(`/calculator?price=${product.price.toFixed(2)}`);
               }}
               className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-2"
             >

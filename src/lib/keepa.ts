@@ -13,7 +13,21 @@
  */
 
 const KEEPA_BASE = "https://api.keepa.com";
-const KEEPA_KEY = process.env.KEEPA_API_KEY!;
+const KEEPA_KEY = process.env.KEEPA_API_KEY;
+
+function getKey(): string {
+  if (!KEEPA_KEY) throw new Error("KEEPA_API_KEY environment variable is not set");
+  return KEEPA_KEY;
+}
+
+const TIMEOUT_MS = 15000;
+
+function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  return fetch(url, { signal: controller.signal, next: { revalidate: 0 } })
+    .finally(() => clearTimeout(timer));
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,7 +147,7 @@ export async function keepaSearch(
   limit = 20
 ): Promise<KeepaRawProduct[]> {
   const params = new URLSearchParams({
-    key: KEEPA_KEY,
+    key: getKey(),
     domain: "1",
     type: "product",
     term,
@@ -141,9 +155,7 @@ export async function keepaSearch(
     history: "1",
   });
 
-  const res = await fetch(`${KEEPA_BASE}/search?${params}`, {
-    next: { revalidate: 0 },
-  });
+  const res = await fetchWithTimeout(`${KEEPA_BASE}/search?${params}`);
 
   if (!res.ok) {
     const text = await res.text();
@@ -164,16 +176,14 @@ export async function keepaProducts(
   if (asins.length === 0) return [];
 
   const params = new URLSearchParams({
-    key: KEEPA_KEY,
+    key: getKey(),
     domain: "1",
     asin: asins.join(","),
     stats: "1",
     history: "1",
   });
 
-  const res = await fetch(`${KEEPA_BASE}/product?${params}`, {
-    next: { revalidate: 0 },
-  });
+  const res = await fetchWithTimeout(`${KEEPA_BASE}/product?${params}`);
 
   if (!res.ok) {
     const text = await res.text();

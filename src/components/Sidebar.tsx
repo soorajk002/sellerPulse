@@ -37,6 +37,9 @@ export default function Sidebar() {
 
   const plan = session?.user?.plan || "starter";
   const isPro = plan === "pro";
+  const searches = session?.user?.searches ?? 0;
+  const maxSearches = session?.user?.maxSearches ?? 20;
+  const searchPct = Math.min((searches / maxSearches) * 100, 100);
 
   return (
     <aside className="w-56 flex-shrink-0 bg-white border-r border-bd h-full flex flex-col">
@@ -93,10 +96,13 @@ export default function Sidebar() {
               <div className="mb-2">
                 <div className="flex justify-between text-xs text-txt-3 mb-1">
                   <span>Searches used</span>
-                  <span className="font-medium">5 / 20</span>
+                  <span className="font-medium">{searches} / {maxSearches}</span>
                 </div>
                 <div className="h-1.5 bg-bg rounded-full">
-                  <div className="h-1.5 bg-orange rounded-full" style={{ width: "25%" }}/>
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${searchPct >= 90 ? "bg-red" : searchPct >= 70 ? "bg-amber" : "bg-orange"}`}
+                    style={{ width: `${searchPct}%` }}
+                  />
                 </div>
               </div>
               <button className="w-full text-xs font-semibold bg-orange text-white py-1.5 rounded-lg hover:bg-orange-hover transition-colors">

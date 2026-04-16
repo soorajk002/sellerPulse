@@ -108,7 +108,10 @@ export default function TrackerPage() {
       <ProductDrawer
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
-        onTrack={() => {}}
+        onTrack={(productId) => {
+          // On the tracker page all viewed products are already tracked — no-op
+          void productId;
+        }}
         isTracked={selectedProduct ? trackedIds.has(selectedProduct.id) : false}
       />
 

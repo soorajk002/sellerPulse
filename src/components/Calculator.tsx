@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 interface CalculatorState {
   productCost: number;
@@ -36,9 +37,12 @@ function getAITip(margin: number, price: number, _cost: number): string {
 }
 
 export default function Calculator() {
+  const searchParams = useSearchParams();
+  const priceParam = searchParams.get("price");
+
   const [inputs, setInputs] = useState<CalculatorState>({
     productCost: 5.00,
-    sellingPrice: 19.99,
+    sellingPrice: priceParam ? Math.max(0, parseFloat(priceParam)) || 19.99 : 19.99,
     weightGrams: 300,
     monthlyUnits: 50,
   });
@@ -72,7 +76,7 @@ export default function Calculator() {
   }, [inputs]);
 
   function update(key: keyof CalculatorState, value: string) {
-    const num = parseFloat(value) || 0;
+    const num = Math.max(0, parseFloat(value) || 0);
     setInputs((prev) => ({ ...prev, [key]: num }));
   }
 

@@ -1,3 +1,17 @@
+/** Safely parse a sparkline value that may already be number[] or a JSON string */
+export function parseSparkline(value: number[] | string | unknown): number[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export function formatRevenue(n: number): string {
   if (n >= 1000) {
     return `$${(n / 1000).toFixed(1)}k`;

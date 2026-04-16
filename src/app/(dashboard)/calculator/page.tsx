@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Calculator from "@/components/Calculator";
 
 export default function CalculatorPage() {
@@ -11,7 +12,9 @@ export default function CalculatorPage() {
         </p>
       </div>
 
-      <Calculator />
+      <Suspense fallback={<div className="text-txt-3 text-sm">Loading calculator…</div>}>
+        <Calculator />
+      </Suspense>
     </div>
   );
 }

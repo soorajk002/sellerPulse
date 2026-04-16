@@ -44,6 +44,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           plan: user.plan,
+          searches: user.searches,
+          maxSearches: user.maxSearches,
         };
       },
     }),
@@ -51,15 +53,20 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.plan = (user as { plan?: string }).plan;
+        const u = user as { id: string; plan?: string; searches?: number; maxSearches?: number };
+        token.id = u.id;
+        token.plan = u.plan;
+        token.searches = u.searches ?? 0;
+        token.maxSearches = u.maxSearches ?? 20;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token) {
+      if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.plan = token.plan as string;
+        session.user.plan = (token.plan as string) ?? "starter";
+        session.user.searches = (token.searches as number) ?? 0;
+        session.user.maxSearches = (token.maxSearches as number) ?? 20;
       }
       return session;
     },
@@ -73,6 +80,8 @@ declare module "next-auth" {
       email: string;
       name?: string | null;
       plan: string;
+      searches: number;
+      maxSearches: number;
     };
   }
 }
