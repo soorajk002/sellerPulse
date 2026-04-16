@@ -2,12 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Product, FilterState } from "@/types";
-import FilterBar from "@/components/FilterBar";
 import ProductTable from "@/components/ProductTable";
 import ProductDrawer from "@/components/ProductDrawer";
 import Toast from "@/components/Toast";
-import StatRow from "@/components/StatRow";
-import { formatRevenue } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -140,7 +137,16 @@ export default function ProductsPage() {
     setSearchMode("demo");
     setCachedResult(false);
     loadDemoProducts();
+    resetFilters();
+  }
+
+  function resetFilters() {
     setFilters({ search: "", category: "", minRevenue: 0, maxRevenue: 0, minScore: 0, competition: "", maxReviews: 0 });
+  }
+
+  function updateFilter(key: keyof FilterState, value: string | number) {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setCurrentPage(1);
   }
 
   // ── Track product ──────────────────────────────────────────────────────
@@ -168,7 +174,7 @@ export default function ProductsPage() {
   }
 
   // ── Client-side filtering ──────────────────────────────────────────────
-  const filtered = useCallback(() => {
+  const filteredProducts = useCallback(() => {
     return allProducts.filter((p) => {
       const q = filters.search.toLowerCase();
       if (q && !p.name.toLowerCase().includes(q) && !p.asin.toLowerCase().includes(q)) return false;
@@ -180,9 +186,8 @@ export default function ProductsPage() {
       if (filters.maxReviews > 0 && p.reviews > filters.maxReviews) return false;
       return true;
     });
-  }, [allProducts, filters]);
+  }, [allProducts, filters])();
 
-  const filteredProducts = filtered();
   const categories = [...new Set(allProducts.map((p) => p.category))].sort();
   const totalPages = Math.ceil(filteredProducts.length / PAGE_SIZE);
   const paginated = filteredProducts.slice(
@@ -190,27 +195,11 @@ export default function ProductsPage() {
     currentPage * PAGE_SIZE
   );
 
-  // ── Stats ──────────────────────────────────────────────────────────────
-  const avgScore = filteredProducts.length
-    ? (filteredProducts.reduce((s, p) => s + p.score, 0) / filteredProducts.length).toFixed(1)
-    : "0";
-  const totalRevenue = filteredProducts.reduce((s, p) => s + p.revenue, 0);
-  const lowComp = filteredProducts.filter((p) => p.competition === "Low").length;
-
-  const stats = [
-    { label: "Products Found", value: filteredProducts.length, icon: "📦" },
-    { label: "Avg Score", value: avgScore, icon: "⭐", trend: "up" as const },
-    { label: "Est. Combined Revenue", value: formatRevenue(totalRevenue), sub: "per month", icon: "💰" },
-    { label: "Low Competition", value: `${lowComp} / ${filteredProducts.length}`, icon: "🎯" },
-  ];
+  const hasFilters = filters.search || filters.category || filters.minScore > 0 ||
+    filters.competition || filters.minRevenue > 0 || filters.maxReviews > 0;
 
   function showToast(message: string, type: "success" | "error" | "info") {
     setToast({ message, type });
-  }
-
-  function handleFiltersChange(next: FilterState) {
-    setFilters(next);
-    setCurrentPage(1);
   }
 
   return (
@@ -226,7 +215,6 @@ export default function ProductsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Live / Demo badge */}
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
             searchMode === "live"
               ? "bg-green-light text-green border-green-border"
@@ -234,33 +222,12 @@ export default function ProductsPage() {
           }`}>
             {searchMode === "live" ? "🟢 Live" : "⚪ Demo"}
           </span>
-
-          {/* View toggle */}
-          <div className="flex items-center bg-bg-2 rounded-lg p-0.5 border border-bd">
-            <button
-              onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "table" ? "bg-white shadow-sm text-orange" : "text-txt-3 hover:text-txt"}`}
-              title="Table view"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-              </svg>
-            </button>
-            <button
-              onClick={() => setViewMode("cards")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "cards" ? "bg-white shadow-sm text-orange" : "text-txt-3 hover:text-txt"}`}
-              title="Card view"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
-              </svg>
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* ── Amazon Search Bar ── */}
-      <div className="bg-white rounded-xl border border-bd p-4 mb-5">
+      {/* ── Combined Search + Filter Panel ── */}
+      <div className="bg-white rounded-xl border border-bd p-4 mb-5 space-y-3">
+        {/* Row 1: Amazon search */}
         <div className="flex gap-3">
           <div className="relative flex-1">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-txt-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,7 +240,7 @@ export default function ProductsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder='Search Amazon — e.g. "bamboo lunch box" or "dog slow feeder"'
-              className="input-field pl-9 pr-4 h-11 text-base"
+              className="input-field pl-9 pr-4 h-10 text-sm"
               disabled={searching}
             />
             {searchQuery && (
@@ -290,7 +257,7 @@ export default function ProductsPage() {
           <button
             onClick={handleSearch}
             disabled={searching}
-            className="btn-primary h-11 px-6 text-base disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 min-w-40 justify-center"
+            className="btn-primary h-10 px-5 text-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {searching ? (
               <>
@@ -298,7 +265,7 @@ export default function ProductsPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
-                Searching...
+                Searching…
               </>
             ) : (
               <>
@@ -312,29 +279,137 @@ export default function ProductsPage() {
           {searchMode === "live" && (
             <button
               onClick={clearSearch}
-              className="h-11 px-4 text-sm text-txt-2 hover:text-txt border border-bd rounded-lg hover:bg-bg-2 transition-colors flex items-center gap-1.5"
+              className="h-10 px-3 text-sm text-txt-2 hover:text-txt border border-bd rounded-lg hover:bg-bg-2 transition-colors"
+              title="Clear search and return to demo"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4l16 16M4 20L20 4"/>
-              </svg>
               Clear
             </button>
           )}
         </div>
-        <p className="text-xs text-txt-3 mt-2 ml-1">
-          Results are cached for 24h to save API credits · Powered by Rainforest + Keepa
+
+        {/* Divider */}
+        <div className="border-t border-bd" />
+
+        {/* Row 2: Filters + view toggle + result count */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Filter-within-results search */}
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-txt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => updateFilter("search", e.target.value)}
+              placeholder="Filter results…"
+              className="input-field pl-8 h-8 text-xs w-40"
+            />
+          </div>
+
+          <select
+            value={filters.category}
+            onChange={(e) => updateFilter("category", e.target.value)}
+            className="input-field h-8 text-xs w-auto"
+          >
+            <option value="">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.competition}
+            onChange={(e) => updateFilter("competition", e.target.value)}
+            className="input-field h-8 text-xs w-auto"
+          >
+            <option value="">Any Competition</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+
+          <select
+            value={filters.minScore}
+            onChange={(e) => updateFilter("minScore", parseFloat(e.target.value))}
+            className="input-field h-8 text-xs w-auto"
+          >
+            <option value={0}>Any Score</option>
+            <option value={7}>Score 7+</option>
+            <option value={8}>Score 8+</option>
+            <option value={8.5}>Score 8.5+</option>
+            <option value={9}>Score 9+</option>
+          </select>
+
+          <select
+            value={filters.minRevenue}
+            onChange={(e) => updateFilter("minRevenue", parseInt(e.target.value))}
+            className="input-field h-8 text-xs w-auto"
+          >
+            <option value={0}>Any Revenue</option>
+            <option value={2000}>$2k+/mo</option>
+            <option value={3000}>$3k+/mo</option>
+            <option value={5000}>$5k+/mo</option>
+            <option value={7000}>$7k+/mo</option>
+          </select>
+
+          <select
+            value={filters.maxReviews}
+            onChange={(e) => updateFilter("maxReviews", parseInt(e.target.value))}
+            className="input-field h-8 text-xs w-auto"
+          >
+            <option value={0}>Any Reviews</option>
+            <option value={100}>Under 100</option>
+            <option value={200}>Under 200</option>
+            <option value={500}>Under 500</option>
+          </select>
+
+          {hasFilters && (
+            <button
+              onClick={resetFilters}
+              className="h-8 px-2.5 text-xs text-txt-2 hover:text-txt border border-bd rounded-lg hover:bg-bg-2 transition-colors flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+              Reset
+            </button>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Result count */}
+          <span className="text-xs text-txt-3 whitespace-nowrap">
+            {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
+          </span>
+
+          {/* View toggle */}
+          <div className="flex items-center bg-bg-2 rounded-lg p-0.5 border border-bd">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "table" ? "bg-white shadow-sm text-orange" : "text-txt-3 hover:text-txt"}`}
+              title="Table view"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("cards")}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "cards" ? "bg-white shadow-sm text-orange" : "text-txt-3 hover:text-txt"}`}
+              title="Card view"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-txt-3">
+          Results cached for 24h · Powered by Rainforest + Keepa
         </p>
       </div>
-
-      {/* ── Stats ── */}
-      <StatRow stats={stats} />
-
-      {/* ── Filter bar ── */}
-      <FilterBar
-        filters={filters}
-        onChange={handleFiltersChange}
-        categories={categories}
-      />
 
       {/* ── Results ── */}
       {loading || searching ? (
