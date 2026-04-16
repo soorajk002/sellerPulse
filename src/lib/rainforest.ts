@@ -132,6 +132,34 @@ export async function rainforestProduct(
   return data.product || null;
 }
 
+export interface RainforestBestsellersResponse {
+  request_info: { success: boolean; message?: string };
+  bestsellers?: RainforestSearchResult[];
+}
+
+/**
+ * Fetch Amazon bestsellers for a given category node ID.
+ * Returns up to 50 top-ranked products (no sponsored items).
+ */
+export async function rainforestBestsellers(
+  categoryId: string
+): Promise<RainforestSearchResult[]> {
+  const params = new URLSearchParams({
+    api_key: getKey(),
+    type: "bestsellers",
+    amazon_domain: "amazon.com",
+    category_id: categoryId,
+  });
+
+  const res = await fetchWithTimeout(`${RAINFOREST_BASE}?${params}`);
+  if (!res.ok) return [];
+
+  const data: RainforestBestsellersResponse = await res.json();
+  if (!data.request_info?.success) return [];
+
+  return (data.bestsellers || []).filter((r) => r.asin && !r.sponsored);
+}
+
 /**
  * Map an Amazon category name to one of our app's category buckets.
  */

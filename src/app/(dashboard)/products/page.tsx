@@ -117,8 +117,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(false);
   const [hasQueried, setHasQueried] = useState(false);
 
-  const [importQuery, setImportQuery] = useState("");
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null); // categoryKey or "all"
   const [dbCount, setDbCount] = useState<number | null>(null);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -149,30 +148,29 @@ export default function ProductsPage() {
     } catch { /* not signed in */ }
   }
 
-  async function importProducts() {
-    if (!importQuery.trim()) return;
-    setImporting(true);
+  async function seedCategory(categoryKey: string) {
+    setImporting(categoryKey);
     try {
-      const res = await fetch("/api/search", {
+      const res = await fetch("/api/admin/seed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: importQuery.trim() }),
+        body: JSON.stringify({ categoryKey }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error || "Import failed", "error"); return; }
-      const count = data.products?.length ?? 0;
-      setDbCount((prev) => (prev ?? 0) + count);
-      setImportQuery("");
+      if (!res.ok) { showToast(data.error || "Fetch failed", "error"); return; }
+      const added = data.total ?? 0;
+      setDbCount((prev) => (prev ?? 0) + added);
       showToast(
-        data.cached
-          ? `Already have ${count} products for that niche`
-          : `Imported ${count} products into your database`,
-        "success"
+        added > 0
+          ? `Fetched ${added} products from Amazon${categoryKey === "all" ? " across all categories" : ""}`
+          : "No new products found — try a different category",
+        added > 0 ? "success" : "info"
       );
+      if (added > 0) fetchProducts();
     } catch {
-      showToast("Import failed — check your connection", "error");
+      showToast("Fetch failed — check your connection", "error");
     } finally {
-      setImporting(false);
+      setImporting(null);
     }
   }
 
@@ -270,49 +268,74 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      {/* ── Import banner (shown while DB is empty or being built) ── */}
+      {/* ── Populate banner (shown while DB is sparse) ── */}
       {dbCount !== null && dbCount < 20 && (
-        <div className="bg-amber-light border border-amber-border rounded-xl p-4 mb-4">
-          <div className="flex items-start gap-3">
-            <span className="text-xl mt-0.5">📥</span>
-            <div className="flex-1 min-w-0">
+        <div className="bg-white border border-bd rounded-xl p-5 mb-4">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 rounded-lg bg-orange-light flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            </div>
+            <div>
               <p className="font-semibold text-txt text-sm">
                 {dbCount === 0 ? "Your product database is empty" : `Only ${dbCount} products in your database`}
               </p>
-              <p className="text-txt-2 text-xs mt-0.5 mb-3">
-                Enter a niche keyword to fetch real Amazon products into your database. Do this a few times to build up inventory you can filter through.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={importQuery}
-                  onChange={(e) => setImportQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && importProducts()}
-                  placeholder='e.g. "bamboo lunch box", "dog slow feeder"'
-                  className="input-field h-9 text-sm flex-1"
-                  disabled={importing}
-                />
-                <button
-                  onClick={importProducts}
-                  disabled={importing || !importQuery.trim()}
-                  className="btn-primary h-9 px-4 text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
-                >
-                  {importing ? (
-                    <>
-                      <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                      Importing…
-                    </>
-                  ) : "Import"}
-                </button>
-              </div>
-              <p className="text-xs text-txt-3 mt-2">
-                Suggested niches: bamboo lunch box · dog slow feeder · yoga blocks · posture corrector · desk organizer
+              <p className="text-txt-3 text-xs mt-0.5">
+                Fetch real Amazon bestsellers by category to build your database. Each fetch pulls ~50 top-ranked products, enriched with BSR history and revenue estimates.
               </p>
             </div>
           </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              { key: "kitchen",  label: "🍳 Kitchen" },
+              { key: "pet",      label: "🐾 Pet Supplies" },
+              { key: "sports",   label: "🏋️ Sports" },
+              { key: "beauty",   label: "💄 Beauty" },
+              { key: "office",   label: "🗂️ Office" },
+              { key: "baby",     label: "🍼 Baby" },
+              { key: "toys",     label: "🧸 Toys" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => seedCategory(key)}
+                disabled={importing !== null}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium border transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  importing === key
+                    ? "bg-orange text-white border-orange"
+                    : "bg-bg text-txt-2 border-bd hover:border-orange-border hover:text-orange hover:bg-orange-light"
+                }`}
+              >
+                {importing === key ? (
+                  <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : null}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => seedCategory("all")}
+            disabled={importing !== null}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-orange text-white hover:bg-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {importing === "all" ? (
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            )}
+            {importing === "all" ? "Fetching all categories…" : "Fetch All Categories"}
+          </button>
+          <p className="text-xs text-txt-3 mt-2">Results cached · uses Rainforest + Keepa APIs</p>
         </div>
       )}
 
