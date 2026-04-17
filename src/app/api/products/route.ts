@@ -26,7 +26,7 @@ import type { Prisma } from "@prisma/client";
 export const maxDuration = 60;
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const SEARCH_PAGES = 3;
+const SEARCH_PAGES = 5;
 
 // Category-specific search terms that yield broad, relevant Amazon results
 const CATEGORY_SEARCH: Record<string, string> = {
