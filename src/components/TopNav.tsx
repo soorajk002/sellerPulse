@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
+import { useMarketplace } from "@/components/MarketplaceContext";
+import { MARKETPLACES } from "@/lib/marketplaces";
 
 export default function TopNav() {
   const { data: session } = useSession();
+  const { marketplace, setMarketplace } = useMarketplace();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
 
   const initials = session?.user?.name
     ? session.user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -25,6 +29,44 @@ export default function TopNav() {
           </div>
           <span className="font-bold text-txt hidden sm:block">SellerPulse</span>
         </Link>
+
+        {/* Marketplace selector */}
+        <div className="relative">
+          <button
+            onClick={() => setMarketplaceOpen(!marketplaceOpen)}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-bd bg-bg hover:bg-bg-2 hover:border-orange-border transition-colors text-sm font-medium text-txt-2"
+          >
+            <span className="text-base leading-none">{marketplace.flag}</span>
+            <span className="hidden sm:block">{marketplace.name}</span>
+            <span className="sm:hidden font-semibold">{marketplace.id}</span>
+            <svg className="w-3.5 h-3.5 text-txt-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          {marketplaceOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMarketplaceOpen(false)} />
+              <div className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl border border-bd shadow-lg z-20 py-1 max-h-72 overflow-y-auto">
+                {MARKETPLACES.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => { setMarketplace(m); setMarketplaceOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2.5 transition-colors ${
+                      m.id === marketplace.id
+                        ? "bg-orange-light text-orange font-semibold"
+                        : "text-txt-2 hover:bg-bg hover:text-txt"
+                    }`}
+                  >
+                    <span className="text-base">{m.flag}</span>
+                    <span className="flex-1">{m.name}</span>
+                    <span className="text-xs text-txt-3">{m.currency}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="flex-1" />
 

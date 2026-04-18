@@ -82,12 +82,13 @@ export interface RainforestProductResponse {
 export async function rainforestSearch(
   query: string,
   page = 1,
-  options?: { minPrice?: number; maxPrice?: number }
+  options?: { minPrice?: number; maxPrice?: number },
+  amazonDomain = "amazon.com",
 ): Promise<RainforestSearchResult[]> {
   const params = new URLSearchParams({
     api_key: getKey(),
     type: "search",
-    amazon_domain: "amazon.com",
+    amazon_domain: amazonDomain,
     search_term: query,
     page: String(page),
     exclude_sponsored: "true",

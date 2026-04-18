@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const s = new URL(request.url).searchParams;
 
     const category    = s.get("category") || "";
+    const marketplace = s.get("marketplace") || "amazon.com";
     const competition = s.get("competition") || "";
     const trend       = s.get("trend") || "";
     const minScore    = parseFloat(s.get("minScore") || "0");
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     // ── 1. Fetch & cache search results for this category + price range ────────
     if (category && CATEGORY_SEARCH[category]) {
-      const cacheKey = `search:${category.toLowerCase()}:${minPrice}-${maxPrice}`;
+      const cacheKey = `search:${marketplace}:${category.toLowerCase()}:${minPrice}-${maxPrice}`;
       const cached = await prisma.searchCache.findUnique({ where: { query: cacheKey } });
       const isStale = !cached || cached.expiresAt < new Date();
 
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
           cacheKey,
           minPrice,
           maxPrice,
+          marketplace,
         );
       }
     }
@@ -135,6 +137,7 @@ async function seedFromSearch(
   cacheKey: string,
   minPrice: number,
   maxPrice: number,
+  amazonDomain = "amazon.com",
 ) {
   try {
     const priceOpts = {
@@ -145,7 +148,7 @@ async function seedFromSearch(
     // Fetch all pages in parallel — 3× faster than sequential
     const pages = await Promise.all(
       Array.from({ length: SEARCH_PAGES }, (_, i) =>
-        rainforestSearch(searchTerm, i + 1, priceOpts).catch(() => [])
+        rainforestSearch(searchTerm, i + 1, priceOpts, amazonDomain).catch(() => [])
       )
     );
     const allResults = pages.flat();

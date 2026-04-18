@@ -5,6 +5,7 @@ import { Product, FilterState, SortField } from "@/types";
 import ProductTable from "@/components/ProductTable";
 import ProductDrawer from "@/components/ProductDrawer";
 import Toast from "@/components/Toast";
+import { useMarketplace } from "@/components/MarketplaceContext";
 
 const EMPTY_FILTERS: FilterState = {
   category: "",
@@ -85,6 +86,7 @@ function ToggleGroup({ label, options, value, onChange }: {
 }
 
 export default function ProductsPage() {
+  const { marketplace } = useMarketplace();
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -147,9 +149,10 @@ export default function ProductsPage() {
       if (f.maxPrice > 0) p.set("maxPrice",     String(f.maxPrice));
       if (f.maxReviews > 0) p.set("maxReviews", String(f.maxReviews));
       if (f.minMargin > 0) p.set("minMargin",   String(f.minMargin));
-      p.set("sortBy",  f.sortBy);
-      p.set("sortDir", f.sortDir);
-      p.set("limit",   "100");
+      p.set("sortBy",      f.sortBy);
+      p.set("sortDir",     f.sortDir);
+      p.set("limit",       "100");
+      p.set("marketplace", marketplace.domain);
 
       const res = await fetch(`/api/products?${p}`);
       if (!res.ok) throw new Error("Failed");
