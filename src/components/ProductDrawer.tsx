@@ -5,6 +5,7 @@ import { Product } from "@/types";
 import Ring from "./Ring";
 import { formatRevenue, formatNumber, competitionClass, scoreRating, parseSparkline } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useMarketplace } from "@/context/MarketplaceContext";
 
 interface ProductDrawerProps {
   product: Product | null;
@@ -81,6 +82,7 @@ function getAIInsight(product: Product): string {
 export default function ProductDrawer({ product, onClose, onTrack, isTracked }: ProductDrawerProps) {
   const router = useRouter();
   const drawerRef = useRef<HTMLDivElement>(null);
+  const { currency } = useMarketplace();
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -146,7 +148,7 @@ export default function ProductDrawer({ product, onClose, onTrack, isTracked }: 
             <div className="flex-1 grid grid-cols-2 gap-3">
               <div className="bg-bg rounded-lg p-3">
                 <p className="text-txt-3 text-xs mb-0.5">Monthly Revenue</p>
-                <p className="font-bold text-txt">{formatRevenue(product.revenue)}</p>
+                <p className="font-bold text-txt">{formatRevenue(product.revenue, currency)}</p>
               </div>
               <div className="bg-bg rounded-lg p-3">
                 <p className="text-txt-3 text-xs mb-0.5">BSR</p>
@@ -154,7 +156,7 @@ export default function ProductDrawer({ product, onClose, onTrack, isTracked }: 
               </div>
               <div className="bg-bg rounded-lg p-3">
                 <p className="text-txt-3 text-xs mb-0.5">Price</p>
-                <p className="font-bold text-txt">${product.price.toFixed(2)}</p>
+                <p className="font-bold text-txt">{currency}{product.price.toFixed(2)}</p>
               </div>
               <div className="bg-bg rounded-lg p-3">
                 <p className="text-txt-3 text-xs mb-0.5">Margin</p>

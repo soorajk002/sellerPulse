@@ -2,6 +2,7 @@
 
 import { Product, SortField } from "@/types";
 import { formatRevenue, formatNumber, competitionClass, parseSparkline } from "@/lib/utils";
+import { useMarketplace } from "@/context/MarketplaceContext";
 
 // ── Opportunity tag ──────────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export default function ProductTable({
   sortDir,
   onSort,
 }: ProductTableProps) {
+  const { currency } = useMarketplace();
 
   if (viewMode === "cards") {
     return (
@@ -164,7 +166,7 @@ export default function ProductTable({
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <div className="bg-bg rounded-lg p-2">
                   <p className="text-txt-3 text-xs">Revenue</p>
-                  <p className="font-bold text-txt text-sm">{formatRevenue(product.revenue)}/mo</p>
+                  <p className="font-bold text-txt text-sm">{formatRevenue(product.revenue, currency)}/mo</p>
                 </div>
                 <div className="bg-bg rounded-lg p-2">
                   <p className="text-txt-3 text-xs">BSR</p>
@@ -172,7 +174,7 @@ export default function ProductTable({
                 </div>
                 <div className="bg-bg rounded-lg p-2">
                   <p className="text-txt-3 text-xs">Price</p>
-                  <p className="font-bold text-txt text-sm">${product.price.toFixed(2)}</p>
+                  <p className="font-bold text-txt text-sm">{currency}{product.price.toFixed(2)}</p>
                 </div>
                 <div className="bg-bg rounded-lg p-2">
                   <p className="text-txt-3 text-xs">Margin</p>
@@ -282,7 +284,7 @@ export default function ProductTable({
 
                   {/* Revenue */}
                   <td className="px-3 py-3 whitespace-nowrap">
-                    <span className="font-semibold text-txt text-sm">{formatRevenue(product.revenue)}</span>
+                    <span className="font-semibold text-txt text-sm">{formatRevenue(product.revenue, currency)}</span>
                     <span className="text-txt-3 text-xs">/mo</span>
                   </td>
 
@@ -293,7 +295,7 @@ export default function ProductTable({
 
                   {/* Price */}
                   <td className="px-3 py-3">
-                    <span className="text-sm text-txt">${product.price.toFixed(2)}</span>
+                    <span className="text-sm text-txt">{currency}{product.price.toFixed(2)}</span>
                   </td>
 
                   {/* Reviews */}

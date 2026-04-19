@@ -12,11 +12,11 @@ export function parseSparkline(value: number[] | string | unknown): number[] {
   return [];
 }
 
-export function formatRevenue(n: number): string {
+export function formatRevenue(n: number, currency = "$"): string {
   if (n >= 1000) {
-    return `$${(n / 1000).toFixed(1)}k`;
+    return `${currency}${(n / 1000).toFixed(1)}k`;
   }
-  return `$${n}`;
+  return `${currency}${n}`;
 }
 
 export function formatNumber(n: number): string {

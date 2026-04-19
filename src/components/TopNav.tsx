@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
+import { useMarketplace, MARKETPLACES } from "@/context/MarketplaceContext";
 
 export default function TopNav() {
   const { data: session } = useSession();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  const { marketplace, setMarketplace } = useMarketplace();
 
   const initials = session?.user?.name
     ? session.user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -25,6 +28,44 @@ export default function TopNav() {
           </div>
           <span className="font-bold text-txt hidden sm:block">SellerPulse</span>
         </Link>
+
+        {/* Marketplace selector */}
+        <div className="relative">
+          <button
+            onClick={() => setMarketplaceOpen(!marketplaceOpen)}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-bd bg-bg text-sm font-medium text-txt-2 hover:border-orange-border hover:text-orange transition-colors"
+          >
+            <span>{marketplace.flag}</span>
+            <span className="hidden sm:inline">{marketplace.label}</span>
+            <span className="sm:hidden">{marketplace.id}</span>
+            <svg className="w-3 h-3 text-txt-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+
+          {marketplaceOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMarketplaceOpen(false)} />
+              <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-xl border border-bd shadow-lg z-20 py-1 overflow-hidden">
+                {MARKETPLACES.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => { setMarketplace(m); setMarketplaceOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2.5 transition-colors ${
+                      marketplace.id === m.id
+                        ? "bg-orange-light text-orange font-semibold"
+                        : "text-txt-2 hover:bg-bg hover:text-txt"
+                    }`}
+                  >
+                    <span>{m.flag}</span>
+                    <span className="flex-1">{m.label}</span>
+                    <span className="text-txt-3 text-xs font-mono">{m.currency}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="flex-1" />
 

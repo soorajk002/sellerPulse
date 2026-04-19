@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SessionProvider } from "@/components/SessionProvider";
 import TopNav from "@/components/TopNav";
 import Sidebar from "@/components/Sidebar";
+import { MarketplaceProvider } from "@/context/MarketplaceContext";
 
 export default async function DashboardLayout({
   children,
@@ -18,17 +19,19 @@ export default async function DashboardLayout({
 
   return (
     <SessionProvider session={session}>
-      <div className="flex flex-col h-screen bg-bg overflow-hidden">
-        <TopNav />
-        <div className="flex flex-1 overflow-hidden">
-          <div className="hidden md:flex">
-            <Sidebar />
+      <MarketplaceProvider>
+        <div className="flex flex-col h-screen bg-bg overflow-hidden">
+          <TopNav />
+          <div className="flex flex-1 overflow-hidden">
+            <div className="hidden md:flex">
+              <Sidebar />
+            </div>
+            <main className="flex-1 overflow-y-auto p-6">
+              {children}
+            </main>
           </div>
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
-          </main>
         </div>
-      </div>
+      </MarketplaceProvider>
     </SessionProvider>
   );
 }

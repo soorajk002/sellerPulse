@@ -5,6 +5,7 @@ import { Product, FilterState, SortField } from "@/types";
 import ProductTable from "@/components/ProductTable";
 import ProductDrawer from "@/components/ProductDrawer";
 import Toast from "@/components/Toast";
+import { useMarketplace } from "@/context/MarketplaceContext";
 
 const EMPTY_FILTERS: FilterState = {
   category: "",
@@ -85,6 +86,7 @@ function ToggleGroup({ label, options, value, onChange }: {
 }
 
 export default function ProductsPage() {
+  const { currency } = useMarketplace();
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -259,8 +261,8 @@ export default function ProductsPage() {
             onChange={(v) => set("trend", v)}
             options={[{ v: "up", l: "↑ Improving" }, { v: "flat", l: "→ Stable" }, { v: "down", l: "↓ Declining" }]} />
 
-          <RangeRow label="Monthly Revenue" minKey="minRevenue" maxKey="maxRevenue" filters={filters} set={set} prefix="$" />
-          <RangeRow label="Selling Price"   minKey="minPrice"   maxKey="maxPrice"   filters={filters} set={set} prefix="$" />
+          <RangeRow label="Monthly Revenue" minKey="minRevenue" maxKey="maxRevenue" filters={filters} set={set} prefix={currency} />
+          <RangeRow label="Selling Price"   minKey="minPrice"   maxKey="maxPrice"   filters={filters} set={set} prefix={currency} />
           <RangeRow label="Best Seller Rank" minKey="minBSR"    maxKey="maxBSR"     filters={filters} set={set} />
           <RangeRow label="SellerScore"      minKey="minScore"  maxKey="maxScore"   filters={filters} set={set} />
 

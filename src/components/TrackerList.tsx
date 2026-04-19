@@ -3,6 +3,28 @@
 import { TrackedProduct } from "@/types";
 import Ring from "./Ring";
 import { formatRevenue, formatNumber } from "@/lib/utils";
+import { useMarketplace } from "@/context/MarketplaceContext";
+
+function ProductImage({ asin, emoji }: { asin: string; emoji: string }) {
+  const src = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL60_.jpg`;
+  return (
+    <div className="w-12 h-12 rounded-lg overflow-hidden bg-bg flex-shrink-0 flex items-center justify-center border border-bd">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        className="w-full h-full object-contain"
+        onError={(e) => {
+          const el = e.currentTarget;
+          el.style.display = "none";
+          if (el.parentElement) {
+            el.parentElement.innerHTML = `<span class="text-2xl">${emoji}</span>`;
+          }
+        }}
+      />
+    </div>
+  );
+}
 
 interface TrackerListProps {
   trackedProducts: TrackedProduct[];
@@ -35,6 +57,7 @@ function MiniSparkline({ data, trend }: { data: number[]; trend: string }) {
 }
 
 export default function TrackerList({ trackedProducts, onRemove, onView }: TrackerListProps) {
+  const { currency } = useMarketplace();
   if (trackedProducts.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-bd text-center py-16">
@@ -71,7 +94,7 @@ export default function TrackerList({ trackedProducts, onRemove, onView }: Track
                 className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                 onClick={() => onView(tp)}
               >
-                <span className="text-3xl flex-shrink-0">{product.emoji}</span>
+                <ProductImage asin={product.asin} emoji={product.emoji} />
                 <div className="min-w-0">
                   <p className="font-semibold text-txt text-sm leading-tight truncate">{product.name}</p>
                   <p className="text-txt-3 text-xs font-mono mt-0.5">{product.asin}</p>
@@ -88,7 +111,7 @@ export default function TrackerList({ trackedProducts, onRemove, onView }: Track
               <div className="hidden md:grid grid-cols-3 gap-4 flex-shrink-0">
                 <div className="text-center">
                   <p className="text-txt-3 text-xs">Revenue</p>
-                  <p className="font-semibold text-txt text-sm">{formatRevenue(product.revenue)}</p>
+                  <p className="font-semibold text-txt text-sm">{formatRevenue(product.revenue, currency)}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-txt-3 text-xs">BSR</p>
